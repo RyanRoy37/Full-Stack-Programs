@@ -1,0 +1,119 @@
+## Step 1: Prepare Your Data Collection
+First, you need a collection with text-rich fields to search. We&#39;ll use a catalog collection for
+this example. The key is to have fields like name and description that contain the words
+you want to find.
+Action: In mongosh, connect to your database and run the following command to insert
+sample data.
+db.catalog.insertMany([
+  {
+    item_id: &quot;A001&quot;,
+    name: &quot;Classic Leather Backpack&quot;,
+    description: &quot;Durable leather backpack with multiple compartments, perfect for
+daily commute or light travel.&quot;,
+    tags: [&quot;leather&quot;, &quot;backpack&quot;, &quot;travel&quot;, &quot;work&quot;],
+    price: 120.00,
+    in_stock: true
+  },
+  {
+    item_id: &quot;A002&quot;,
+    name: &quot;Ergonomic Office Chair&quot;,
+    description: &quot;Adjustable office chair with lumbar support and breathable mesh,
+ideal for long working hours.&quot;,
+    tags: [&quot;office&quot;, &quot;chair&quot;, &quot;ergonomic&quot;, &quot;comfort&quot;],
+    price: 280.00,
+    in_stock: false
+  },
+  {
+    item_id: &quot;A003&quot;,
+    name: &quot;Durable Cotton T-Shirt&quot;,
+    description: &quot;A soft and durable t-shirt made from 100% organic cotton. Eco-
+friendly and comfortable.&quot;,
+    tags: [&quot;cotton&quot;, &quot;tshirt&quot;, &quot;organic&quot;, &quot;eco-friendly&quot;],
+    price: 25.00,
+    in_stock: true
+  }
+]);
+
+## Step 2: Create a text Index
+This is the most critical step for enabling text search on a Community Server. You must
+tell MongoDB which fields to prepare for searching. Without this index, the $text operator
+will not work.
+Why is this needed? A text index acts like an index at the back of a book. It lists all the
+significant words from your specified fields and maps them back to the documents they
+
+came from. This allows MongoDB to find words very quickly without scanning every single
+document in the collection.
+Important Note: A collection can have at most one text index.
+Action: Run the createIndex command. Here, we are indexing the name, description, and
+tags fields. 
+db.catalog.createIndex({
+  name: &quot;text&quot;,    description: &quot;text&quot;,    tags: &quot;text&quot;
+})
+## Step 3: Build and Execute the Aggregation Pipeline
+Now, you&#39;ll construct the query. Instead of the $search stage used in Atlas, you will use
+the $match stage combined with the $text operator.
+Action: Let&#39;s build a pipeline to find all items that contain the words &quot;durable&quot; or
+&quot;backpack&quot;.
+1. Stage 1: The $match Stage with $text This stage filters the documents.
+ $text: The operator that performs the search on the text index.
+ $search: The string containing the words you&#39;re looking for. By default,
+MongoDB searches for documents that contain any of the space-
+separated words (an OR condition).
+
+{
+  $match: {
+    $text: {
+      $search: &quot;durable backpack&quot;
+    }
+  }
+}
+Stage 2: The $project Stage This stage refines the output. It&#39;s good practice to select
+only the fields you need and to view the search relevance score.
+ $meta: &quot;textScore&quot;: This special expression retrieves the relevance score
+calculated by the $text search. A higher score means a better match.
+{
+  $project: {
+    _id: 0,
+    name: 1,
+    price: 1,
+    score: { $meta: &quot;textScore&quot; }
+  }
+}
+
+Complete Pipeline Execution: Combine these stages and run the aggregate command. 
+db.catalog.aggregate([
+  // Stage 1: Filter documents using the text index
+  {
+    $match: {
+      $text: {
+
+        $search: &quot;durable backpack&quot;
+      }
+    }
+  },
+  // Stage 2: Reshape output and include the relevance score
+  {
+    $project: {
+      _id: 0,
+      name: 1,
+      price: 1,
+      score: { $meta: &quot;textScore&quot; }
+    }
+  }
+])
+## Step 4: Analyze the Results
+The output will be the documents that matched your search query, formatted according to
+your $project stage.
+Expected Output:
+[
+  {
+    &quot;name&quot;: &quot;Classic Leather Backpack&quot;,
+    &quot;price&quot;: 120,
+    &quot;score&quot;: 1.5
+  },
+  {
+    &quot;name&quot;: &quot;Durable Cotton T-Shirt&quot;,
+    &quot;price&quot;: 25,
+    &quot;score&quot;: 0.75
+  }
+]
