@@ -1,10 +1,6 @@
 {
   "employees": [
-    {
-      "id": "57d0",
-      "firstName": "",
-      "lastName": "ftghf",
-      "email": ""
-    }
+    { "id": 1, "firstName": "John", "lastName": "Doe", "email": "john@example.com" },
+    { "id": 2, "firstName": "Jane", "lastName": "Smith", "email": "jane@example.com" }
   ]
 }
